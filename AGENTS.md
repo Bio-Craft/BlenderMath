@@ -20,6 +20,8 @@ The Euler-Lotka film is the primary integration project. Treat failures or dupli
 - Visual objects and their labels must derive positions from the same coordinate object. Never hand-maintain a second timeline or axis beside an existing bmath axis.
 - Animation state, transform origin, scale origin, stroke/fill opacity, and GP depth behavior must remain consistent across `Create`, `Write`, `FadeIn`, `FadeOut`, `Transform`, and matching transforms.
 - Typst math/text must remain fill-only by default unless a caller explicitly requests a stroke.
+- Text labels in explanatory scenes must use maximum-brightness white or the
+  brightest semantic color supplied by the caller; avoid muted grey label text.
 - Grease Pencil output is unlit by default and must work with the View Layer depth pass.
 - Open and closed curves must both support resampling and geometric morphs without losing smoothness.
 - Keep public behavior compatible with current Blender 5.2 unless a deliberate breaking change is documented.
@@ -37,4 +39,3 @@ The Euler-Lotka film is the primary integration project. Treat failures or dupli
 - Keep generated distributions, caches, editor state, render output, temporary Typst files, and Blender backup files out of Git.
 - Do not commit private downstream project assets or copied data.
 - Keep commits scoped and describe behavioral changes, tests, and downstream implications.
-
