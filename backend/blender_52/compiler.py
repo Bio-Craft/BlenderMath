@@ -18,6 +18,7 @@ from ...core.morph import (
     align_curve_points, interpolate_points, prepare_morph_points, resample_curve,
     sample_cubic_bezier_path,
 )
+from ...core.gp_fill import nested_fill_groups
 
 COLLECTION_NAME = "BlenderMath"
 GP_RADIUS_SCALE = 0.35
@@ -300,6 +301,7 @@ class BlenderCompiler:
             if glyph.type == "GREASEPENCIL":
                 glyph.data.stroke_depth_order = "3D"
                 glyph.use_grease_pencil_lights = False
+                self._repair_typst_fill_groups(glyph)
                 subdivide = glyph.modifiers.new("BM Typst Subdivide", "GREASE_PENCIL_SUBDIV")
                 # Typst already supplies the intended Bezier outline. Simple
                 # subdivision adds points for Write/Transform without rounding
@@ -360,6 +362,22 @@ class BlenderCompiler:
                         gp.color = (0.0, 0.0, 0.0, 1.0)
                     baselines[material.name_full] = (tuple(gp.color), tuple(gp.fill_color))
         self.math_material_baselines[mobject.uid] = baselines
+
+    def _repair_typst_fill_groups(self, glyph):
+        if not glyph.data.layers:
+            return
+        layer = glyph.data.layers[0]
+        for frame in layer.frames:
+            drawing = frame.drawing
+            strokes = self._extract_gp_strokes(glyph, frame.frame_number)
+            cyclic = [
+                (index, self._gp_stroke_path(stroke))
+                for index, stroke in enumerate(strokes)
+                if stroke["cyclic"] and len(stroke["points"]) >= 3
+            ]
+            groups = nested_fill_groups([path for _, path in cyclic])
+            for (stroke_index, _), fill_id in zip(cyclic, groups):
+                drawing.strokes[stroke_index].fill_id = fill_id
 
     @staticmethod
     def _center_imported_glyphs(glyphs):

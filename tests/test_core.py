@@ -8,6 +8,7 @@ from core import (
 )
 from core.scene import BakedUpdaterClip
 from core.morph import prepare_morph_points, resample_curve, sample_cubic_bezier_path
+from core.gp_fill import nested_fill_groups
 
 
 class ExpressionTests(unittest.TestCase):
@@ -23,6 +24,18 @@ class ColorTests(unittest.TestCase):
         self.assertEqual(BLUE, BLUE_C)
         self.assertEqual(BLUE_E, (28 / 255, 117 / 255, 138 / 255, 1.0))
         self.assertEqual(COLORMAP_3B1B, (BLUE_E, GREEN, YELLOW, RED))
+
+
+class GreasePencilFillTests(unittest.TestCase):
+    def test_nested_hole_shares_outer_fill_group(self):
+        outer = [(0, 0), (4, 0), (4, 4), (0, 4)]
+        hole = [(1, 1), (1, 3), (3, 3), (3, 1)]
+        self.assertEqual(nested_fill_groups([outer, hole]), [1, 1])
+
+    def test_overlapping_stroke_outlines_use_separate_fill_groups(self):
+        horizontal = [(0, 1), (4, 1), (4, 2), (0, 2)]
+        vertical = [(1, 0), (2, 0), (2, 4), (1, 4)]
+        self.assertEqual(nested_fill_groups([horizontal, vertical]), [1, 2])
 
 
 class SceneGraphTests(unittest.TestCase):

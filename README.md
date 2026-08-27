@@ -22,7 +22,7 @@ The Blender API is isolated in `backend/blender_52`; the core package can run in
 - Geometry Nodes owns reusable parameter-driven 3D assets. `Arrow3D` exposes start, end, shaft radius, tip radius, and tip length as modifier inputs; every instance shares one node group.
 - Native curves, meshes, and cached samples remain available for spatial curves and simulations where they are a better editing surface.
 
-The GP backend maps logical `Style.width` through a thinner canvas radius scale so axes, ticks, and graphs have consistent visual weight. Typst GP glyphs receive editable Subdivide and Smooth modifiers; their source strokes remain untouched for `Write` and morph animation.
+The GP backend maps logical `Style.width` through a thinner canvas radius scale so axes, ticks, and graphs have consistent visual weight. Typst GP glyphs receive editable Subdivide and Smooth modifiers; their source strokes remain untouched for `Write` and morph animation. Compound glyph contours are grouped by nesting so overlapping CJK strokes remain filled without closing intentional counters and holes.
 
 Geometry Nodes parameters participate in the normal scene timeline. For example, this changes the evaluated mesh by keyframing only the endpoint inputs:
 

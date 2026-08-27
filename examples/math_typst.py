@@ -1,6 +1,6 @@
 """MathTex/Typst example; requires blender_typst_importer in Blender."""
 
-from bmath import GREEN_C, MathTex, Scene, Transform, Write
+from bmath import BLUE_C, GREEN_C, MathTex, Scene, Transform, Write
 
 
 class MathTypstExample(Scene):
@@ -19,4 +19,11 @@ class MathTypstExample(Scene):
         )
         self.play(Transform(equation, rearranged), run_time=2)
         self.play(equation.animate(run_time=1.5).set_color(GREEN_C))
+        self.wait(1)
+        survival = MathTex(
+            '$ l(a) = P("存活到年龄" a) $',
+            name="CJK Compound Fill",
+        )
+        survival.set_color(BLUE_C)
+        self.play(Transform(equation, survival), run_time=2)
         self.wait(1)
