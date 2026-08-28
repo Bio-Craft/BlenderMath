@@ -372,6 +372,30 @@ class TimelineTests(unittest.TestCase):
         self.assertEqual(graph[0].geometry, target[0].geometry)
 
 class MathTests(unittest.TestCase):
+    def test_rich_typst_text_does_not_instrument_plain_numbers(self):
+        source = (
+            '#set text(font: "Microsoft YaHei")\n'
+            '#text(size: 15pt)[数据：印度喀拉拉乡村本地鸡研究（2016）]'
+        )
+        label = MathTex(source)
+
+        rendered, identifiers = label.render_source_with_part_ids()
+
+        self.assertEqual(rendered, source)
+        self.assertEqual(identifiers, {})
+        self.assertEqual(label.tokens, [])
+
+    def test_rich_typst_text_only_instruments_explicit_math_regions(self):
+        source = '#text[2016 年的增长率为 $ r = 2 $]'
+        label = MathTex(source)
+
+        rendered, identifiers = label.render_source_with_part_ids()
+
+        self.assertNotEqual(rendered, source)
+        self.assertTrue(identifiers)
+        self.assertEqual([token.source for token in label.tokens], ["r", "=", "2"])
+        self.assertIn("2016 年的增长率为", rendered)
+
     def test_matrix_layout_is_not_flattened_by_semantic_instrumentation(self):
         matrix = MathTex("$ mat(1; 2; 3) $")
 

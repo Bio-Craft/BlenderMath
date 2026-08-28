@@ -82,7 +82,14 @@ class MathTex(VGroup):
 
     @staticmethod
     def _tokenize(source):
-        pieces = re.findall(r"[A-Za-z]+|\d+|\^|_|[+\-*/=()]|[^\s]", source.strip("$ "))
+        semantic_source = " ".join(
+            source[start:end]
+            for start, end in MathTex._automatic_semantic_ranges(source)
+        )
+        pieces = re.findall(
+            r"[A-Za-z]+|\d+|\^|_|[+\-*/=()]|[^\s]",
+            semantic_source.strip("$ "),
+        )
         counts = {}
         result = []
         for piece in pieces:
@@ -113,6 +120,24 @@ class MathTex(VGroup):
         return tuple(ranges)
 
     @staticmethod
+    def _automatic_semantic_ranges(source):
+        """Limit automatic math semantics inside rich Typst source to `$...$`."""
+        if not source.lstrip().startswith("#"):
+            return ((0, len(source)),)
+
+        ranges = []
+        start = None
+        for index, character in enumerate(source):
+            if character != "$" or (index > 0 and source[index - 1] == "\\"):
+                continue
+            if start is None:
+                start = index + 1
+            else:
+                ranges.append((start, index))
+                start = None
+        return tuple(ranges)
+
+    @staticmethod
     def _inside_ranges(start, end, ranges):
         return any(start < range_end and end > range_start for range_start, range_end in ranges)
 
@@ -122,6 +147,7 @@ class MathTex(VGroup):
         spans = []
         occupied = [False] * len(source)
         layout_ranges = MathTex._layout_ranges(source)
+        semantic_ranges = MathTex._automatic_semantic_ranges(source)
 
         # Explicit terms win over their component variables. This is useful for
         # constructs such as sqrt(...) that should travel as one visual term.
@@ -138,6 +164,8 @@ class MathTex(VGroup):
         # symbols are safe to wrap in Typst without changing expression syntax.
         auto_pattern = re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z]|\d+|[+\-=])(?![A-Za-z0-9])")
         for match in auto_pattern.finditer(source):
+            if not MathTex._inside_ranges(match.start(), match.end(), semantic_ranges):
+                continue
             if MathTex._inside_ranges(match.start(), match.end(), layout_ranges):
                 continue
             if any(occupied[match.start():match.end()]):
@@ -192,12 +220,15 @@ class MathTex(VGroup):
             pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(source)}(?![A-Za-z0-9])")
             index = -1
             layout_ranges = self._layout_ranges(result)
+            semantic_ranges = self._automatic_semantic_ranges(result)
 
             def replace(match):
                 nonlocal index
-                index += 1
+                if not self._inside_ranges(match.start(), match.end(), semantic_ranges):
+                    return match.group(0)
                 if self._inside_ranges(match.start(), match.end(), layout_ranges):
                     return match.group(0)
+                index += 1
                 if re.match(r"\s*\(", match.string[match.end():]):
                     raise ValueError(
                         f"Token {source!r} is used as a Typst function; isolate the full expression before coloring"
@@ -215,6 +246,7 @@ class MathTex(VGroup):
             return self.render_source(), {}
         source = self.source
         layout_ranges = self._layout_ranges(source)
+        semantic_ranges = self._automatic_semantic_ranges(source)
         identifiers = {}
         replacements = []
         occupied = [False] * len(source)
@@ -243,6 +275,8 @@ class MathTex(VGroup):
             pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(token)}(?![A-Za-z0-9])")
             occurrence = -1
             for match in pattern.finditer(source):
+                if not self._inside_ranges(match.start(), match.end(), semantic_ranges):
+                    continue
                 occurrence += 1
                 if selected_occurrence is not None and occurrence != selected_occurrence:
                     continue

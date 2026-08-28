@@ -63,6 +63,8 @@ In Blender, create a Text data block containing the scene, select it under **3D 
 
 `MathTex` stores source-level tokens for matching. When a scene contains `MathTex`, the Blender 5.2 backend imports `typst_express` from `typst_importer.typst_to_svg`. Install and enable `blender_typst_importer` separately; BlenderMath does not copy or vendor that GPL project. Math objects use Grease Pencil by default; pass `representation="CURVE"` or `"MESH"` when those forms better suit the workflow.
 
+Rich Typst sources beginning with markup such as `#text[...]` apply automatic semantic matching only inside explicit `$...$` regions. Plain prose, years, and layout numbers therefore keep their text layout; standalone formula sources retain the existing automatic matching behavior.
+
 Grease Pencil math has no outline by default (`stroke_mode="NONE"`). Use `"MATCH_FILL"` for a same-color outline or `"BLACK"` for a black outline.
 
 The backend supports both legacy top-level imports and Blender Extension namespaces such as `bl_ext.blender_org.typst_importer` by discovering configured repositories at runtime.

@@ -27,3 +27,10 @@ class MathTypstExample(Scene):
         survival.set_color(BLUE_C)
         self.play(Transform(equation, survival), run_time=2)
         self.wait(1)
+        source_note = MathTex(
+            '#set text(font: "Microsoft YaHei")\n'
+            '#text(size: 18pt)[数据来源：乡村本地鸡研究（2016）]',
+            name="Plain CJK Source Note",
+        ).scale(0.72)
+        self.play(Transform(equation, source_note), run_time=2)
+        self.wait(1)
