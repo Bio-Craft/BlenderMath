@@ -65,6 +65,17 @@ In Blender, create a Text data block containing the scene, select it under **3D 
 
 Rich Typst sources beginning with markup such as `#text[...]` apply automatic semantic matching only inside explicit `$...$` regions. Plain prose, years, and layout numbers therefore keep their text layout; standalone formula sources retain the existing automatic matching behavior.
 
+Use `TypstText` for ordinary labels and prose. It escapes Typst content syntax and
+guarantees that dates, numeric ranges, parentheses, `$`, `#`, and brackets never
+enter math token matching:
+
+```python
+label = TypstText("日本鹌鹑完整生命史，218 只雌鸟（2025）", font_size=18)
+```
+
+Use `MathTex` only when the source is genuinely mathematical or needs semantic
+term matching.
+
 Grease Pencil math has no outline by default (`stroke_mode="NONE"`). Use `"MATCH_FILL"` for a same-color outline or `"BLACK"` for a black outline.
 
 The backend supports both legacy top-level imports and Blender Extension namespaces such as `bl_ext.blender_org.typst_importer` by discovering configured repositories at runtime.

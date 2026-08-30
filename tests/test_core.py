@@ -372,6 +372,20 @@ class TimelineTests(unittest.TestCase):
         self.assertEqual(graph[0].geometry, target[0].geometry)
 
 class MathTests(unittest.TestCase):
+    def test_typst_text_keeps_mixed_cjk_numbers_literal(self):
+        from core import TypstText
+
+        label = TypstText("雏鸡 0-8 周（2016）与 $r=2$ #1 [样本]")
+        rendered, identifiers = label.render_source_with_part_ids()
+
+        self.assertEqual(label.tokens, [])
+        self.assertEqual(label.parts, ())
+        self.assertEqual(identifiers, {})
+        self.assertIn("2016", rendered)
+        self.assertIn(r"\$r=2\$", rendered)
+        self.assertIn(r"\#1", rendered)
+        self.assertIn(r"\[样本\]", rendered)
+
     def test_rich_typst_text_does_not_instrument_plain_numbers(self):
         source = (
             '#set text(font: "Microsoft YaHei")\n'

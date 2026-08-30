@@ -1,6 +1,6 @@
 """MathTex/Typst example; requires blender_typst_importer in Blender."""
 
-from bmath import BLUE_C, GREEN_C, MathTex, Scene, Transform, Write
+from bmath import BLUE_C, GREEN_C, MathTex, Scene, Transform, TypstText, Write
 
 
 class MathTypstExample(Scene):
@@ -27,9 +27,9 @@ class MathTypstExample(Scene):
         survival.set_color(BLUE_C)
         self.play(Transform(equation, survival), run_time=2)
         self.wait(1)
-        source_note = MathTex(
-            '#set text(font: "Microsoft YaHei")\n'
-            '#text(size: 18pt)[数据来源：乡村本地鸡研究（2016）]',
+        source_note = TypstText(
+            "数据来源：完整生命史（2016），雏鸡 0-8 周",
+            font_size=18,
             name="Plain CJK Source Note",
         ).scale(0.72)
         self.play(Transform(equation, source_note), run_time=2)

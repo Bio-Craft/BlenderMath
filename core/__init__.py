@@ -15,7 +15,7 @@ from .mobject import MObject, Style, VGroup
 from .scene import Scene
 from .simulation import Simulation, rk4
 from .tracker import ValueTracker
-from .text import Math, MathPart, MathTex, MathToken, Text
+from .text import Math, MathPart, MathTex, MathToken, Text, TypstText
 from .vectors import DOWN, LEFT, ORIGIN, OUT, RIGHT, UP
 
 __all__ = [
@@ -27,7 +27,7 @@ __all__ = [
     "MatchTermTransform", "Math", "MathPart", "MathTex", "MathToken", "MObject", "MoveTo", "NumberLine", "NumberPlane", "ORIGIN", "OUT", "Polyline",
     "Rectangle", "RIGHT", "Rotate", "Scale", "Scene", "Style",
     "Simulation",
-    "Text", "ThreeDAxes", "ThreeDAxes3D", "Transform", "TransformMatchingTex", "UP", "VGroup", "ValueTracker", "Write", "ease_in_out_sine", "linear",
+    "Text", "ThreeDAxes", "ThreeDAxes3D", "Transform", "TransformMatchingTex", "TypstText", "UP", "VGroup", "ValueTracker", "Write", "ease_in_out_sine", "linear",
     "rk4",
     "smoothstep",
 ] + _colors.__all__

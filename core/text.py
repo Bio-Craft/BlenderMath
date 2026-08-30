@@ -298,3 +298,56 @@ class MathTex(VGroup):
 
 
 Math = MathTex
+
+
+class TypstText(MathTex):
+    """Plain Typst text that never participates in math token matching.
+
+    Use this for prose and labels containing dates, ranges, parentheses, or
+    math-looking punctuation.  Content-block escaping keeps those characters
+    literal while preserving Typst's font and glyph-outline rendering.
+    """
+
+    kind = "math"
+
+    def __init__(
+        self,
+        text: str,
+        *,
+        font: str = "Microsoft YaHei",
+        font_size: float = 18,
+        weight: str | None = None,
+        representation: str = "GREASE_PENCIL",
+        stroke_mode: str = "NONE",
+        style: Style | None = None,
+        name: str = "TypstText",
+    ):
+        self.text = str(text)
+        escaped = self._escape_content(self.text)
+        escaped_font = font.replace("\\", "\\\\").replace('"', '\\"')
+        weight_option = ""
+        if weight is not None:
+            escaped_weight = str(weight).replace("\\", "\\\\").replace('"', '\\"')
+            weight_option = f', weight: "{escaped_weight}"'
+        source = (
+            f'#set text(font: "{escaped_font}")\n'
+            f'#text(size: {float(font_size):g}pt{weight_option})[{escaped}]'
+        )
+        super().__init__(
+            source,
+            substrings_to_isolate=(),
+            representation=representation,
+            stroke_mode=stroke_mode,
+            style=style,
+            name=name,
+        )
+        self.tokens = []
+        self.parts = ()
+        self.metadata["plain_typst_text"] = self.text
+
+    @staticmethod
+    def _escape_content(text: str) -> str:
+        result = str(text).replace("\\", "\\\\")
+        for character in ("#", "$", "[", "]"):
+            result = result.replace(character, f"\\{character}")
+        return result
