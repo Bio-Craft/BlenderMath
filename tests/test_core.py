@@ -2,7 +2,7 @@ import math
 import unittest
 
 from core import (
-    BLUE, BLUE_C, BLUE_E, COLORMAP_3B1B, GREEN, RED, WHITE, YELLOW, Axes, Circle, Create, Dot, Expression, ExpressionError, FadeOut, Line, MathTex,
+    BLUE, BLUE_C, BLUE_E, COLORMAP_3B1B, GREEN, RED, WHITE, YELLOW, Axes, Circle, Create, Dot, Expression, ExpressionError, FadeOut, Line, MathMatrix, MathTex,
     NumberPlane, Rectangle, Scene, ThreeDAxes, Transform, TransformMatchingTex, Write,
     ValueTracker, VGroup, linear,
 )
@@ -144,6 +144,30 @@ class SceneGraphTests(unittest.TestCase):
         maximum = item.get_bounding_box()[1]
         self.assertAlmostEqual(maximum[0], 4.5)
         self.assertAlmostEqual(maximum[2], 2.5)
+
+    def test_matrix_math_layout_uses_rows_instead_of_flattening_tokens(self):
+        matrix = MathTex(
+            '$ mat(delim: "[",b_0,b_1,b_2,b_3,b_4;'
+            's_0,0,0,0,0;0,s_1,0,0,0;0,0,s_2,0,0;0,0,0,s_3,0) $'
+        )
+        output = MathTex(
+            '$ mat(delim: "[",sum_(i=0)^4 b_i n_i;s_0 n_0;'
+            's_1 n_1;s_2 n_2;s_3 n_3) $'
+        )
+        equation = VGroup(
+            output, MathTex("$ = $"), matrix,
+            MathTex('$ mat(delim: "[",n_0;n_1;n_2;n_3;n_4) $'),
+        ).arrange(buff=.2)
+
+        self.assertLess(matrix.get_width(), 6.0)
+        self.assertGreater(matrix.get_height(), 3.0)
+        self.assertLess(equation.get_width(), 12.0)
+        for left, right in zip(equation.children, equation.children[1:]):
+            self.assertAlmostEqual(
+                right.get_bounding_box()[0][0]
+                - left.get_bounding_box()[1][0],
+                .2,
+            )
 
 
 class CoordinateTests(unittest.TestCase):
@@ -417,6 +441,44 @@ class MathTests(unittest.TestCase):
 
         self.assertEqual(source, matrix.source)
         self.assertEqual(identifiers, {})
+
+    def test_explicit_matrix_cells_can_be_colored_without_wrapping_separators(self):
+        matrix = MathTex(
+            "$ mat(b_0,b_1;s_0,0) $",
+            substrings_to_isolate=("b_0", "b_1", "s_0"),
+        )
+        matrix.token_colors[("b_0", None)] = (1.0, 0.7, 0.4, 1.0)
+
+        source, identifiers = matrix.render_source_with_part_ids()
+
+        self.assertEqual(len(identifiers), 3)
+        self.assertIn("mat(", source)
+        self.assertEqual(source.count(","), 2)
+        self.assertEqual(source.count(";"), 1)
+
+    def test_math_matrix_has_stable_grid_and_independent_colors(self):
+        matrix = MathMatrix(
+            (("b_0", "b_1", "0"), ("s_0", "0", "0")),
+            cell_width=0.8,
+            cell_height=0.6,
+            element_colors={"b_0": RED, "b_1": RED, "s_0": BLUE},
+        )
+
+        self.assertEqual((matrix.rows, matrix.cols), (2, 3))
+        self.assertEqual(len(matrix.cells), 6)
+        self.assertAlmostEqual(
+            matrix.get_entry(0, 1).get_center()[0]
+            - matrix.get_entry(0, 0).get_center()[0],
+            0.8,
+        )
+        self.assertAlmostEqual(
+            matrix.get_entry(0, 0).get_center()[2]
+            - matrix.get_entry(1, 0).get_center()[2],
+            0.6,
+        )
+        self.assertEqual(matrix.get_entry(0, 0).style.color, RED)
+        self.assertEqual(matrix.get_entry(1, 0).style.color, BLUE)
+        self.assertGreater(matrix.get_height(), 0.6)
 
     def test_math_tex_defaults_to_white_filled_grease_pencil(self):
         from core import MathTex, WHITE

@@ -15,7 +15,7 @@ from .mobject import MObject, Style, VGroup
 from .scene import Scene
 from .simulation import Simulation, rk4
 from .tracker import ValueTracker
-from .text import Math, MathPart, MathTex, MathToken, Text, TypstText
+from .text import Math, MathMatrix, MathPart, MathTex, MathToken, Text, TypstText
 from .vectors import DOWN, LEFT, ORIGIN, OUT, RIGHT, UP
 
 __all__ = [
@@ -24,7 +24,7 @@ __all__ = [
     "ExpressionError",
     "Keyframe",
     "FadeIn", "FadeOut", "FunctionGraph", "LEFT", "LegacyAnimation", "Line",
-    "MatchTermTransform", "Math", "MathPart", "MathTex", "MathToken", "MObject", "MoveTo", "NumberLine", "NumberPlane", "ORIGIN", "OUT", "Polyline",
+    "MatchTermTransform", "Math", "MathMatrix", "MathPart", "MathTex", "MathToken", "MObject", "MoveTo", "NumberLine", "NumberPlane", "ORIGIN", "OUT", "Polyline",
     "Rectangle", "RIGHT", "Rotate", "Scale", "Scene", "Style",
     "Simulation",
     "Text", "ThreeDAxes", "ThreeDAxes3D", "Transform", "TransformMatchingTex", "TypstText", "UP", "VGroup", "ValueTracker", "Write", "ease_in_out_sine", "linear",

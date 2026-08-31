@@ -9,6 +9,72 @@ from .mobject import MObject, Style, VGroup
 from .colors import WHITE
 
 
+def _split_typst_top_level(source: str, separator: str) -> list[str]:
+    """Split a Typst argument list without cutting nested calls or strings."""
+    parts, start, depth, quoted = [], 0, 0, False
+    for index, character in enumerate(source):
+        if character == '"' and (index == 0 or source[index - 1] != "\\"):
+            quoted = not quoted
+        elif not quoted:
+            if character in "([{":
+                depth += 1
+            elif character in ")]}" and depth:
+                depth -= 1
+            elif character == separator and depth == 0:
+                parts.append(source[start:index])
+                start = index + 1
+    parts.append(source[start:])
+    return parts
+
+
+def _matching_parenthesis(source: str, opening: int) -> int | None:
+    depth, quoted = 0, False
+    for index in range(opening, len(source)):
+        character = source[index]
+        if character == '"' and (index == 0 or source[index - 1] != "\\"):
+            quoted = not quoted
+        elif not quoted:
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth == 0:
+                    return index
+    return None
+
+
+def _math_layout_dimensions(source: str, token_count: int) -> tuple[float, float]:
+    """Estimate compact multiline Typst constructs before Blender imports glyphs."""
+    marker = re.search(r"\b(?:mat|vec)\s*\(", source)
+    if marker is None:
+        return max(.4, token_count * .32), .7
+    opening = source.find("(", marker.start())
+    closing = _matching_parenthesis(source, opening)
+    if closing is None:
+        return max(.4, token_count * .32), .7
+
+    content = source[opening + 1:closing]
+    arguments = _split_typst_top_level(content, ",")
+    if arguments and arguments[0].strip().startswith("delim:"):
+        content = content[content.find(",") + 1:]
+    rows = _split_typst_top_level(content, ";")
+    parsed_rows = [_split_typst_top_level(row, ",") for row in rows]
+    column_count = max((len(row) for row in parsed_rows), default=1)
+    column_widths = [0.0] * column_count
+    for row in parsed_rows:
+        for column, cell in enumerate(row):
+            visible = re.sub(r"[^A-Za-z0-9+\-*/=]", "", cell)
+            column_widths[column] = max(
+                column_widths[column],
+                max(.75, len(visible) * .28),
+            )
+    matrix_width = sum(column_widths) + max(0, column_count - 1) * .15 + .38
+    matrix_height = max(.8, len(parsed_rows) * .76)
+    outside = source[:marker.start()] + source[closing + 1:]
+    outside_tokens = re.findall(r"[A-Za-z]+|\d+|[+\-*/=]", outside)
+    return matrix_width + len(outside_tokens) * .32, matrix_height
+
+
 class Text(MObject):
     """Lightweight label compiled to a native Blender text curve."""
 
@@ -77,6 +143,13 @@ class MathTex(VGroup):
         self.tokens = self._tokenize(source)
         self.parts = self._find_matching_parts(source, self.substrings_to_isolate)
         self.token_colors: dict[tuple[str, int | None], tuple[float, float, float, float]] = {}
+        layout_width, layout_height = _math_layout_dimensions(
+            source, len(self.tokens)
+        )
+        self.geometry.update(
+            layout_width=layout_width,
+            layout_height=layout_height,
+        )
         self.metadata["typst_source"] = source
         self.metadata["representation"] = representation
 
@@ -151,10 +224,10 @@ class MathTex(VGroup):
 
         # Explicit terms win over their component variables. This is useful for
         # constructs such as sqrt(...) that should travel as one visual term.
+        # Explicit matrix-cell terms are also safe: only the cell contents are
+        # wrapped, while commas and semicolons remain untouched in math mode.
         for text in sorted({str(item) for item in isolated if str(item)}, key=len, reverse=True):
             for match in re.finditer(re.escape(text), source):
-                if MathTex._inside_ranges(match.start(), match.end(), layout_ranges):
-                    continue
                 if any(occupied[match.start():match.end()]):
                     continue
                 spans.append((match.start(), match.end(), text))
@@ -298,6 +371,95 @@ class MathTex(VGroup):
 
 
 Math = MathTex
+
+
+class MathMatrix(VGroup):
+    """A matrix assembled from independently styleable MathTex cells."""
+
+    def __init__(
+        self,
+        entries,
+        *,
+        element_scale: float = 0.48,
+        cell_width: float = 0.72,
+        cell_height: float = 0.58,
+        color=(1.0, 1.0, 1.0, 1.0),
+        element_colors=None,
+        bracket_color=None,
+        bracket_width: float = 0.012,
+        name: str = "MathMatrix",
+    ):
+        rows = tuple(tuple(str(value) for value in row) for row in entries)
+        if not rows or not rows[0]:
+            raise ValueError("MathMatrix requires at least one entry")
+        column_count = len(rows[0])
+        if any(len(row) != column_count for row in rows):
+            raise ValueError("MathMatrix rows must all have the same length")
+        if cell_width <= 0 or cell_height <= 0:
+            raise ValueError("MathMatrix cell dimensions must be positive")
+
+        element_colors = element_colors or {}
+        cells = []
+        row_count = len(rows)
+        x_origin = (column_count - 1) * float(cell_width) / 2
+        z_origin = (row_count - 1) * float(cell_height) / 2
+        for row_index, row in enumerate(rows):
+            for column_index, value in enumerate(row):
+                cell_color = element_colors.get(
+                    (row_index, column_index),
+                    element_colors.get(value, color),
+                )
+                cell = MathTex(
+                    f"$ {value} $",
+                    style=Style(
+                        color=cell_color,
+                        fill_color=cell_color,
+                        fill_opacity=1.0,
+                    ),
+                    name=f"{name} [{row_index}, {column_index}]",
+                ).scale(element_scale)
+                cell.move_to((
+                    column_index * float(cell_width) - x_origin,
+                    0.0,
+                    z_origin - row_index * float(cell_height),
+                ))
+                cells.append(cell)
+
+        # Geometry imports text for label helpers, so keep this import local.
+        from .geometry import Polyline
+
+        bracket_color = color if bracket_color is None else bracket_color
+        x_extent = x_origin + float(cell_width) * 0.62
+        z_extent = z_origin + float(cell_height) * 0.58
+        hook = min(float(cell_width) * 0.25, 0.22)
+        bracket_style = Style(color=bracket_color, width=float(bracket_width))
+        left_bracket = Polyline(
+            ((-x_extent + hook, 0.0, z_extent),
+             (-x_extent, 0.0, z_extent),
+             (-x_extent, 0.0, -z_extent),
+             (-x_extent + hook, 0.0, -z_extent)),
+            style=bracket_style,
+            name=f"{name} Left Bracket",
+        )
+        right_bracket = Polyline(
+            ((x_extent - hook, 0.0, z_extent),
+             (x_extent, 0.0, z_extent),
+             (x_extent, 0.0, -z_extent),
+             (x_extent - hook, 0.0, -z_extent)),
+            style=bracket_style,
+            name=f"{name} Right Bracket",
+        )
+        super().__init__(*cells, left_bracket, right_bracket, name=name)
+        self.entries = rows
+        self.rows = row_count
+        self.cols = column_count
+        self.cells = tuple(cells)
+        self.left_bracket = left_bracket
+        self.right_bracket = right_bracket
+
+    def get_entry(self, row: int, column: int) -> MathTex:
+        """Return a matrix cell by zero-based row and column."""
+        return self.cells[row * self.cols + column]
 
 
 class TypstText(MathTex):

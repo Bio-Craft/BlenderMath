@@ -170,6 +170,10 @@ class MObject:
             width = max(size * .5, size * .62 * len(self.geometry.get("text", "")))
             return _box_points(width, 0.0, size)
         if self.kind == "math":
+            layout_width = self.geometry.get("layout_width")
+            layout_height = self.geometry.get("layout_height")
+            if layout_width is not None and layout_height is not None:
+                return _box_points(float(layout_width), 0.0, float(layout_height))
             visible = [token for token in getattr(self, "tokens", ()) if token.source not in {"^", "_", "{", "}"}]
             width = max(.4, len(visible) * .32)
             return _box_points(width, 0.0, .7)
