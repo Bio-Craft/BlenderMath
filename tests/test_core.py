@@ -171,6 +171,51 @@ class SceneGraphTests(unittest.TestCase):
 
 
 class CoordinateTests(unittest.TestCase):
+    def test_bar_chart_uses_axes_coordinates_and_baseline(self):
+        from core import Axes, BarChart
+
+        axes = Axes(
+            x_range=(0, 4, 1), y_range=(-2, 4, 1),
+            x_length=8, y_length=6,
+        ).shift((2, -1, 3))
+        chart = BarChart(
+            axes, (3, -1), x_values=(1, 3), bar_width=1,
+            baseline=0.5, gap_ratio=0.2,
+        )
+        self.assertEqual(chart.kind, "shape_2d_multi")
+        self.assertEqual(len(chart.geometry["strokes"]), 2)
+        self.assertEqual(chart.geometry["strokes"][0][0], axes.c2p(0.6, 0.5))
+        self.assertEqual(chart.geometry["strokes"][0][2], axes.c2p(1.4, 3))
+        self.assertEqual(chart.geometry["strokes"][1][2], axes.c2p(3.4, -1))
+        minimum, maximum = chart.get_bounding_box()
+        self.assertAlmostEqual(minimum[2], axes.c2p(0, -1)[2])
+        self.assertAlmostEqual(maximum[2], axes.c2p(0, 3)[2])
+
+    def test_bar_chart_scales_about_baseline_without_lifting(self):
+        from core import Axes
+
+        axes = Axes(x_range=(0, 2), y_range=(0, 4))
+        chart = axes.get_bar_chart((2, 4), x_values=(0.5, 1.5), bar_width=1)
+        baseline_z = axes.c2p(0, 0)[2]
+        chart.scale_y(0.01, about_point=chart.baseline_point)
+        for stroke in chart.geometry["strokes"]:
+            for point in stroke[:2]:
+                self.assertAlmostEqual(chart._point_to_world(point)[2], baseline_z)
+
+    def test_riemann_rectangles_support_sampling_and_clipped_last_bin(self):
+        from core import Axes
+
+        axes = Axes(x_range=(0, 3), y_range=(0, 9))
+        chart = axes.get_riemann_rectangles(
+            lambda x: x * x,
+            x_range=(0, 2.5),
+            dx=1,
+            input_sample_type="right",
+        )
+        self.assertEqual(chart.values, (1.0, 4.0, 6.25))
+        self.assertEqual(chart.x_values, (0.5, 1.5, 2.25))
+        self.assertEqual(chart.widths, (1.0, 1.0, 0.5))
+
     def test_asymmetric_axes_cross_at_coordinate_zero(self):
         from core import Axes
 
@@ -565,10 +610,11 @@ class ExampleTests(unittest.TestCase):
             clip for clip in scene.timeline
             if getattr(clip.animation, "mobject", None).name == "Normal Approximation"
         ]
-        self.assertEqual(len(bars), 11)
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(len(bars[0].animation.mobject.geometry["strokes"]), 11)
         self.assertEqual(len(labels), 11)
-        self.assertTrue(all(clip.initial.scale[2] == .001 for clip in bars))
-        self.assertTrue(all(clip.final.scale[2] == 1.0 for clip in bars))
+        self.assertEqual(bars[0].initial.scale[2], .001)
+        self.assertEqual(bars[0].final.scale[2], 1.0)
         self.assertTrue(all(clip.start_frame == labels[0].start_frame for clip in bars + labels))
         self.assertTrue(all(clip.start_frame > bars[0].end_frame for clip in curve))
 

@@ -2,7 +2,7 @@
 
 from math import comb, exp, pi, sqrt
 
-from bmath import Axes, BLUE_C, Create, FadeIn, MathTex, Polyline, RED_C, Scene, Style
+from bmath import Axes, BLUE_C, Create, FadeIn, MathTex, RED_C, Scene, Style
 
 
 class ProbabilityDistributionExample(Scene):
@@ -31,10 +31,8 @@ class ProbabilityDistributionExample(Scene):
 
         self.play(Create(axes), run_time=1.6)
 
-        bar_animations = []
+        probabilities = []
         label_animations = []
-        x_unit = axes.x_length / (axes.x_range[1] - axes.x_range[0])
-        bar_width = 0.72 * x_unit
         bar_style = Style(
             color=BLUE_C,
             width=0.006,
@@ -44,36 +42,37 @@ class ProbabilityDistributionExample(Scene):
 
         for k in range(n + 1):
             probability = comb(n, k) * p**k * (1 - p) ** (n - k)
+            probabilities.append(probability)
             base = axes.c2p(k, 0)
             top = axes.c2p(k, probability)
-            height = top[2] - base[2]
-            bar = Polyline(
-                [
-                    (-bar_width / 2, 0, 0),
-                    (bar_width / 2, 0, 0),
-                    (bar_width / 2, 0, height),
-                    (-bar_width / 2, 0, height),
-                ],
-                cyclic=True,
-                style=bar_style,
-                name=f"Binomial Bar {k}",
-            ).shift(base).scale_y(0.001, about_point=base)
             probability_label = MathTex(
                 f"$ {probability:.3f} $",
                 stroke_mode="NONE",
                 name=f"Probability Label {k}",
             ).move_to(base).scale(0.001)
 
-            bar_animations.append(
-                bar.animate(run_time=2.0).scale_y(1000, about_point=base)
-            )
             label_animations.append(
                 probability_label.animate(run_time=2.0)
                 .move_to((top[0], top[1], top[2] + 0.15))
                 .scale(200)
             )
 
-        self.play(*bar_animations, *label_animations, run_time=2.0)
+        bars = axes.get_bar_chart(
+            probabilities,
+            x_values=range(n + 1),
+            bar_width=0.72,
+            gap_ratio=0,
+            style=bar_style,
+            name="Binomial Bars",
+        )
+        bars.scale_y(0.001, about_point=bars.baseline_point).set_opacity(0)
+        self.play(
+            bars.animate(run_time=2.0)
+            .scale_y(1000, about_point=bars.baseline_point)
+            .set_opacity(1),
+            *label_animations,
+            run_time=2.0,
+        )
         self.wait(0.25)
 
         mean = n * p

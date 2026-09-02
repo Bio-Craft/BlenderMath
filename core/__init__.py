@@ -8,7 +8,7 @@ from .animation import (
     MatchTermTransform, Rotate, Scale, Transform, TransformMatchingTex, Write,
     ease_in_out_sine, linear, smoothstep,
 )
-from .coordinates import Axes, FunctionGraph, NumberLine, NumberPlane, ThreeDAxes
+from .coordinates import Axes, BarChart, FunctionGraph, NumberLine, NumberPlane, ThreeDAxes
 from .expression import Expression, ExpressionError
 from .geometry import Arrow, Arrow3D, Circle, Dot, Line, Polyline, Rectangle, ThreeDAxes3D
 from .mobject import MObject, Style, VGroup
@@ -20,7 +20,7 @@ from .vectors import DOWN, LEFT, ORIGIN, OUT, RIGHT, UP
 
 __all__ = [
     "Animation",
-    "Arrow", "Arrow3D", "Axes", "Circle", "Create", "Dot", "DOWN", "Expression",
+    "Arrow", "Arrow3D", "Axes", "BarChart", "Circle", "Create", "Dot", "DOWN", "Expression",
     "ExpressionError",
     "Keyframe",
     "FadeIn", "FadeOut", "FunctionGraph", "LEFT", "LegacyAnimation", "Line",

@@ -165,6 +165,9 @@ class MObject:
         points = self.geometry.get("points")
         if points:
             return list(points)
+        strokes = self.geometry.get("strokes")
+        if strokes:
+            return [point for stroke in strokes for point in stroke]
         if self.kind == "text":
             size = float(self.geometry.get("font_size", 0.28))
             width = max(size * .5, size * .62 * len(self.geometry.get("text", "")))

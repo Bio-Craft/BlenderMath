@@ -91,6 +91,8 @@ class BlenderCompiler:
             data = self._curve_data(mobject, geometry, morph_pairs)
         elif mobject.kind == "shape_2d":
             data = self._grease_pencil_data(mobject, self._initial_geometry(mobject))
+        elif mobject.kind == "shape_2d_multi":
+            data = self._grease_pencil_multi_data(mobject, self._initial_geometry(mobject))
         elif mobject.kind == "dot":
             data = self._dot_data(mobject)
         elif mobject.kind == "text":
@@ -104,8 +106,12 @@ class BlenderCompiler:
         obj["blendermath_uid"] = mobject.uid
         obj["blendermath_kind"] = mobject.kind
         obj.parent = parent
-        needs_plane_adapter = mobject.kind in {"shape_2d", "text", "math"}
-        if mobject.kind == "shape_2d" and mobject.parent is not None and mobject.parent.kind == "shape_2d":
+        needs_plane_adapter = mobject.kind in {"shape_2d", "shape_2d_multi", "text", "math"}
+        if (
+            mobject.kind in {"shape_2d", "shape_2d_multi"}
+            and mobject.parent is not None
+            and mobject.parent.kind in {"shape_2d", "shape_2d_multi"}
+        ):
             needs_plane_adapter = False
         if needs_plane_adapter:
             # GP fills triangulate in local XY; delta rotation maps that plane to
@@ -116,7 +122,11 @@ class BlenderCompiler:
         if mobject.kind == "math":
             self._compile_math(mobject, obj)
         if data is not None:
-            material = self._gp_material(mobject) if mobject.kind == "shape_2d" else self._material(mobject)
+            material = (
+                self._gp_material(mobject)
+                if mobject.kind in {"shape_2d", "shape_2d_multi"}
+                else self._material(mobject)
+            )
             data.materials.append(material)
             self.materials[mobject.uid] = material
             if mobject.kind == "curve" and mobject.geometry.get("cyclic") and mobject.style.fill_color and mobject.style.fill_opacity > 0:
@@ -217,6 +227,32 @@ class BlenderCompiler:
                 if cyclic else _subdivide_open_polyline(points, 32)
             )
         self._populate_gp_drawing(drawing, points, mobject.style, cyclic=cyclic)
+        return grease_pencil
+
+    def _grease_pencil_multi_data(self, mobject, geometry):
+        grease_pencil = bpy.data.grease_pencils.new(f"{mobject.name} Geometry")
+        grease_pencil.stroke_depth_order = "3D"
+        layer = grease_pencil.layers.new("BlenderMath", set_active=True)
+        drawing = layer.frames.new(1).drawing
+        strokes = geometry.get("strokes", ())
+        drawing.add_strokes([len(points) for points in strokes])
+        local_points = [
+            (x, z, -y)
+            for stroke in strokes
+            for x, y, z in stroke
+        ]
+        drawing.attributes["position"].data.foreach_set(
+            "vector", [component for point in local_points for component in point]
+        )
+        cyclic = bool(geometry.get("cyclic"))
+        for index, stroke in enumerate(drawing.strokes):
+            stroke.cyclic = cyclic
+            stroke.fill_id = index + 1 if cyclic else 0
+            stroke.fill_opacity = mobject.style.fill_opacity
+            for point in stroke.points:
+                point.radius = max(0.00025, mobject.style.width * GP_RADIUS_SCALE)
+                point.opacity = 1.0
+        drawing.tag_positions_changed()
         return grease_pencil
 
     @staticmethod
@@ -446,7 +482,7 @@ class BlenderCompiler:
         obj = self.objects[mobject.uid]
         obj.location = state.location
         obj.rotation_euler = state.rotation
-        if mobject.kind in {"shape_2d", "text", "math"}:
+        if mobject.kind in {"shape_2d", "shape_2d_multi", "text", "math"}:
             # Plane data is stored in local XY and rotated onto BlenderMath's
             # XZ canvas, so semantic depth/height scales map to local Z/Y.
             obj.scale = (state.scale[0], state.scale[2], state.scale[1])
@@ -500,7 +536,7 @@ class BlenderCompiler:
         animation = clip.animation
         if isinstance(animation, (Create, Write)):
             for member in animation.mobject.family():
-                if member.kind == "shape_2d":
+                if member.kind in {"shape_2d", "shape_2d_multi"}:
                     self._write_shape_grease_pencil(member, clip)
         if animation.mobject.kind == "math" and animation.mobject.uid in self.external_objects:
             self._keyframe_math(animation, clip)

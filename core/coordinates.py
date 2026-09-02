@@ -6,9 +6,9 @@ import math
 from collections.abc import Callable
 
 from .expression import Expression, ExpressionError
-from .colors import WHITE
+from .colors import BLUE_C, WHITE
 from .geometry import Line, Polyline
-from .mobject import Style, VGroup
+from .mobject import MObject, Style, VGroup
 from .text import Text
 from .vectors import add, vec3
 
@@ -28,6 +28,91 @@ class FunctionGraph(VGroup):
         super().__init__(*curves, name=name)
         self.function = function
         self.domain = domain
+
+
+class BarChart(MObject):
+    """A data-space bar chart compiled as one multi-stroke Grease Pencil object."""
+
+    kind = "shape_2d_multi"
+
+    def __init__(
+        self,
+        axes,
+        values,
+        *,
+        x_values=None,
+        widths=None,
+        bar_width=None,
+        baseline=0.0,
+        gap_ratio=0.1,
+        style=None,
+        name="BarChart",
+    ):
+        super().__init__(name=name, style=style or Style(
+            color=BLUE_C,
+            width=0.006,
+            fill_color=BLUE_C,
+            fill_opacity=0.85,
+        ))
+        self.axes = axes
+        self.values = tuple(float(value) for value in values)
+        if not self.values:
+            raise ValueError("BarChart requires at least one value")
+        self.x_values = tuple(
+            float(value) for value in
+            (range(len(self.values)) if x_values is None else x_values)
+        )
+        if len(self.x_values) != len(self.values):
+            raise ValueError("x_values and values must have equal lengths")
+        if widths is not None and bar_width is not None:
+            raise ValueError("Pass widths or bar_width, not both")
+        if widths is None:
+            if bar_width is None:
+                if len(self.x_values) > 1:
+                    bar_width = min(
+                        abs(right - left)
+                        for left, right in zip(self.x_values, self.x_values[1:])
+                    )
+                else:
+                    bar_width = abs(float(axes.x_range[2]))
+            widths = [bar_width] * len(self.values)
+        self.widths = tuple(float(width) for width in widths)
+        if len(self.widths) != len(self.values) or any(width <= 0 for width in self.widths):
+            raise ValueError("widths must contain one positive value per bar")
+        if not 0 <= gap_ratio < 1:
+            raise ValueError("gap_ratio must be in [0, 1)")
+        self.baseline = float(baseline)
+        self.gap_ratio = float(gap_ratio)
+        self.baseline_point = axes.c2p(self.x_values[0], self.baseline)
+        self._update_geometry()
+
+    def _update_geometry(self):
+        strokes = []
+        for x, value, width in zip(self.x_values, self.values, self.widths):
+            half_width = width * (1 - self.gap_ratio) / 2
+            left, right = x - half_width, x + half_width
+            strokes.append([
+                self.axes.c2p(left, self.baseline),
+                self.axes.c2p(right, self.baseline),
+                self.axes.c2p(right, value),
+                self.axes.c2p(left, value),
+            ])
+        self.geometry.update({
+            "strokes": strokes,
+            "cyclic": True,
+            "values": self.values,
+            "x_values": self.x_values,
+            "widths": self.widths,
+            "baseline": self.baseline,
+        })
+
+    def set_values(self, values):
+        values = tuple(float(value) for value in values)
+        if len(values) != len(self.values):
+            raise ValueError("New values must preserve the number of bars")
+        self.values = values
+        self._update_geometry()
+        return self
 
 
 class NumberLine(VGroup):
@@ -212,6 +297,64 @@ class Axes(VGroup):
         labels = self.get_axis_labels(*args, **kwargs)
         self.add(labels)
         return labels
+
+    def get_bar_chart(self, values, **kwargs):
+        """Create a filled 2D Grease Pencil bar chart in this axes' coordinates."""
+        return BarChart(self, values, **kwargs)
+
+    def get_riemann_rectangles(
+        self,
+        function: str | Callable[[float], float],
+        x_range=None,
+        *,
+        dx=1.0,
+        input_sample_type="center",
+        baseline=0.0,
+        gap_ratio=0.0,
+        style=None,
+        name="Riemann Rectangles",
+    ):
+        """Sample a function into a 2D GP bar chart over adjacent intervals."""
+        dx = float(dx)
+        if dx <= 0:
+            raise ValueError("dx must be positive")
+        if input_sample_type not in {"left", "center", "right"}:
+            raise ValueError("input_sample_type must be left, center, or right")
+        start, end = x_range or self.x_range[:2]
+        start, end = float(start), float(end)
+        if end <= start:
+            raise ValueError("x_range must increase")
+        evaluator = Expression(function) if isinstance(function, str) else function
+        centers, widths, values = [], [], []
+        left = start
+        while left < end - 1e-12:
+            right = min(end, left + dx)
+            sample = {
+                "left": left,
+                "center": (left + right) / 2,
+                "right": right,
+            }[input_sample_type]
+            try:
+                value = evaluator(x=sample) if isinstance(evaluator, Expression) else evaluator(sample)
+                value = float(value)
+            except (ArithmeticError, ValueError, TypeError, ExpressionError) as error:
+                raise ValueError(f"Function is not finite at x={sample:g}") from error
+            if not math.isfinite(value):
+                raise ValueError(f"Function is not finite at x={sample:g}")
+            centers.append((left + right) / 2)
+            widths.append(right - left)
+            values.append(value)
+            left = right
+        return BarChart(
+            self,
+            values,
+            x_values=centers,
+            widths=widths,
+            baseline=baseline,
+            gap_ratio=gap_ratio,
+            style=style,
+            name=name,
+        )
 
     def plot_parametric(
         self,

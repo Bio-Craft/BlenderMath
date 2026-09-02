@@ -2,6 +2,7 @@
 
 from .coordinate_systems import CoordinateSystemsExample
 from .axis_scaling import AxisScalingExample
+from .bar_charts import BarChartsExample
 from .geometry_nodes_3d import GeometryNodes3DExample
 from .creation import CreationExample
 from .fading import FadingExample
@@ -27,6 +28,7 @@ EXAMPLES = {
     "SCENE_GRAPH": SceneGraphExample,
     "COORDINATES": CoordinateSystemsExample,
     "AXIS_SCALING": AxisScalingExample,
+    "BAR_CHARTS": BarChartsExample,
     "GEOMETRY_NODES_3D": GeometryNodes3DExample,
     "FUNCTION_GRAPHS": FunctionGraphsExample,
     "PARAMETRIC": ParametricCurvesExample,
