@@ -45,6 +45,7 @@ class BarChart(MObject):
         bar_width=None,
         baseline=0.0,
         gap_ratio=0.1,
+        merge_adjacent=False,
         style=None,
         name="BarChart",
     ):
@@ -83,20 +84,43 @@ class BarChart(MObject):
             raise ValueError("gap_ratio must be in [0, 1)")
         self.baseline = float(baseline)
         self.gap_ratio = float(gap_ratio)
+        self.merge_adjacent = bool(merge_adjacent)
+        if self.merge_adjacent and self.gap_ratio != 0:
+            raise ValueError("merge_adjacent requires gap_ratio=0")
+        sides = {
+            1 if value > self.baseline else -1
+            for value in self.values
+            if value != self.baseline
+        }
+        if self.merge_adjacent and len(sides) > 1:
+            raise ValueError("merge_adjacent bars must stay on one side of the baseline")
         self.baseline_point = axes.c2p(self.x_values[0], self.baseline)
         self._update_geometry()
 
     def _update_geometry(self):
-        strokes = []
+        rectangles = []
+        bounds = []
         for x, value, width in zip(self.x_values, self.values, self.widths):
             half_width = width * (1 - self.gap_ratio) / 2
             left, right = x - half_width, x + half_width
-            strokes.append([
+            bounds.append((left, right))
+            rectangles.append([
                 self.axes.c2p(left, self.baseline),
                 self.axes.c2p(right, self.baseline),
                 self.axes.c2p(right, value),
                 self.axes.c2p(left, value),
             ])
+        if self.merge_adjacent:
+            points = [self.axes.c2p(bounds[0][0], self.baseline)]
+            for (left, right), value in zip(bounds, self.values):
+                points.extend((
+                    self.axes.c2p(left, value),
+                    self.axes.c2p(right, value),
+                ))
+            points.append(self.axes.c2p(bounds[-1][1], self.baseline))
+            strokes = [points]
+        else:
+            strokes = rectangles
         self.geometry.update({
             "strokes": strokes,
             "cyclic": True,
@@ -104,6 +128,7 @@ class BarChart(MObject):
             "x_values": self.x_values,
             "widths": self.widths,
             "baseline": self.baseline,
+            "merge_adjacent": self.merge_adjacent,
         })
 
     def set_values(self, values):
@@ -311,6 +336,7 @@ class Axes(VGroup):
         input_sample_type="center",
         baseline=0.0,
         gap_ratio=0.0,
+        merge_adjacent=False,
         style=None,
         name="Riemann Rectangles",
     ):
@@ -352,6 +378,7 @@ class Axes(VGroup):
             widths=widths,
             baseline=baseline,
             gap_ratio=gap_ratio,
+            merge_adjacent=merge_adjacent,
             style=style,
             name=name,
         )

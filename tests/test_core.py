@@ -216,6 +216,22 @@ class CoordinateTests(unittest.TestCase):
         self.assertEqual(chart.x_values, (0.5, 1.5, 2.25))
         self.assertEqual(chart.widths, (1.0, 1.0, 0.5))
 
+    def test_adjacent_riemann_bars_can_compile_as_one_step_area(self):
+        from core import Axes
+
+        axes = Axes(x_range=(0, 2), y_range=(0, 4))
+        chart = axes.get_riemann_rectangles(
+            lambda x: x + 1,
+            x_range=(0, 2),
+            dx=0.5,
+            merge_adjacent=True,
+        )
+        self.assertEqual(len(chart.values), 4)
+        self.assertEqual(len(chart.geometry["strokes"]), 1)
+        self.assertEqual(len(chart.geometry["strokes"][0]), 10)
+        self.assertEqual(chart.geometry["strokes"][0][0], axes.c2p(0, 0))
+        self.assertEqual(chart.geometry["strokes"][0][-1], axes.c2p(2, 0))
+
     def test_asymmetric_axes_cross_at_coordinate_zero(self):
         from core import Axes
 
