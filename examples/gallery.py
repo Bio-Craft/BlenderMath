@@ -5,9 +5,11 @@ from .axis_scaling import AxisScalingExample
 from .bar_charts import BarChartsExample
 from .geometry_nodes_3d import GeometryNodes3DExample
 from .creation import CreationExample
+from .decimal_number import DecimalNumberExample
 from .fading import FadingExample
 from .fill_and_stroke import FillAndStrokeExample
 from .function_graphs import FunctionGraphsExample
+from .geometry_updater import GeometryUpdaterExample
 from .math_typst import MathTypstExample
 from .matrices import MatricesExample
 from .parametric_curves import ParametricCurvesExample
@@ -22,6 +24,7 @@ from .transformations import TransformationsExample
 
 EXAMPLES = {
     "CREATION": CreationExample,
+    "DECIMAL_NUMBER": DecimalNumberExample,
     "TRANSFORMATIONS": TransformationsExample,
     "FADING": FadingExample,
     "FILL_STROKE": FillAndStrokeExample,
@@ -31,6 +34,7 @@ EXAMPLES = {
     "BAR_CHARTS": BarChartsExample,
     "GEOMETRY_NODES_3D": GeometryNodes3DExample,
     "FUNCTION_GRAPHS": FunctionGraphsExample,
+    "GEOMETRY_UPDATER": GeometryUpdaterExample,
     "PARAMETRIC": ParametricCurvesExample,
     "PROBABILITY": ProbabilityDistributionExample,
     "QUADRATIC_DERIVATION": QuadraticDerivationExample,

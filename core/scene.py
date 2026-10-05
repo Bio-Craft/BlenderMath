@@ -27,6 +27,7 @@ class TimelineClip:
 class BakedUpdaterClip:
     mobject: MObject
     samples: list[tuple[int, object]]
+    geometry_samples: list[tuple[int, dict]] | None = None
 
 
 class Scene:
@@ -84,7 +85,7 @@ class Scene:
         end = self.current_frame + round(duration * self.fps)
         tracker_animations = [item for item in built if isinstance(item, TrackerAnimation)]
         updater_initial = {
-            mobject.uid: deepcopy(mobject.state)
+            mobject.uid: (deepcopy(mobject.state), deepcopy(mobject.geometry))
             for mobject in self.family()
             if mobject.updaters
         }
@@ -129,10 +130,11 @@ class Scene:
                 for updater in mobject.updaters:
                     updater(mobject)
 
-    def _bake_updaters(self, animations, initial_states, start, end):
+    def _bake_updaters(self, animations, initial_values, start, end):
         tracked = [(animation, animation.start_value) for animation in animations]
         targets = [mobject for mobject in self.family() if mobject.updaters]
         baked = {mobject.uid: [] for mobject in targets}
+        geometries = {mobject.uid: [] for mobject in targets if "points" in mobject.geometry}
         for frame in range(start, end + 1):
             for animation, _ in tracked:
                 span = max(1, round(animation.run_time * self.fps))
@@ -140,14 +142,31 @@ class Scene:
                 t = animation.rate_func(t)
                 animation.tracker.value = animation.start_value + t * (animation.end_value - animation.start_value)
             for mobject in targets:
-                mobject.state = deepcopy(initial_states[mobject.uid])
+                initial_state, initial_geometry = initial_values[mobject.uid]
+                mobject.state = deepcopy(initial_state)
+                mobject.geometry = deepcopy(initial_geometry)
                 for updater in mobject.updaters:
                     updater(mobject)
                 baked[mobject.uid].append((frame, deepcopy(mobject.state)))
+                if mobject.uid in geometries:
+                    points = mobject.geometry.get("points")
+                    if points is None or len(points) != len(initial_geometry["points"]):
+                        raise ValueError("Geometry updater must preserve its point count")
+                    if bool(mobject.geometry.get("cyclic")) != bool(initial_geometry.get("cyclic")):
+                        raise ValueError("Geometry updater must preserve open/closed topology")
+                    geometries[mobject.uid].append((frame, deepcopy(mobject.geometry)))
         for animation, _ in tracked:
             animation.tracker.value = animation.end_value
         for mobject in targets:
-            self.timeline.append(BakedUpdaterClip(mobject, baked[mobject.uid]))
+            geometry_samples = geometries.get(mobject.uid)
+            initial_geometry = initial_values[mobject.uid][1]
+            if geometry_samples and all(
+                geometry == initial_geometry for _frame, geometry in geometry_samples
+            ):
+                geometry_samples = None
+            self.timeline.append(BakedUpdaterClip(
+                mobject, baked[mobject.uid], geometry_samples,
+            ))
 
     @property
     def frame_end(self):

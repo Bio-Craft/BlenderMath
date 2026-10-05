@@ -282,6 +282,10 @@ class MObject:
         self.updaters.append(updater)
         return self
 
+    def clear_updaters(self) -> "MObject":
+        self.updaters.clear()
+        return self
+
     @property
     def animate(self):
         from .animation import AnimationBuilder

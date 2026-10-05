@@ -20,17 +20,3 @@ class MathTypstExample(Scene):
         self.play(Transform(equation, rearranged), run_time=2)
         self.play(equation.animate(run_time=1.5).set_color(GREEN_C))
         self.wait(1)
-        survival = MathTex(
-            '$ l(a) = P("存活到年龄" a) $',
-            name="CJK Compound Fill",
-        )
-        survival.set_color(BLUE_C)
-        self.play(Transform(equation, survival), run_time=2)
-        self.wait(1)
-        source_note = TypstText(
-            "数据来源：完整生命史（2016），雏鸡 0-8 周",
-            font_size=18,
-            name="Plain CJK Source Note",
-        ).scale(0.72)
-        self.play(Transform(equation, source_note), run_time=2)
-        self.wait(1)

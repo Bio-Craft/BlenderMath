@@ -23,6 +23,13 @@ class Polyline(MObject):
     def points(self) -> list[Vec3]:
         return self.geometry["points"]
 
+    def set_points(self, points) -> "Polyline":
+        values = [vec3(point) for point in points]
+        if len(values) < 2:
+            raise ValueError("Polyline needs at least two points")
+        self.geometry["points"] = values
+        return self
+
 
 class Line(Polyline):
     def __init__(self, start=(-1, 0, 0), end=(1, 0, 0), **kwargs):

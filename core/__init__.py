@@ -15,12 +15,12 @@ from .mobject import MObject, Style, VGroup
 from .scene import Scene
 from .simulation import Simulation, rk4
 from .tracker import ValueTracker
-from .text import Math, MathMatrix, MathPart, MathTex, MathToken, Text, TypstText
+from .text import DecimalNumber, Math, MathMatrix, MathPart, MathTex, MathToken, Text, TypstText
 from .vectors import DOWN, LEFT, ORIGIN, OUT, RIGHT, UP
 
 __all__ = [
     "Animation",
-    "Arrow", "Arrow3D", "Axes", "BarChart", "Circle", "Create", "Dot", "DOWN", "Expression",
+    "Arrow", "Arrow3D", "Axes", "BarChart", "Circle", "Create", "DecimalNumber", "Dot", "DOWN", "Expression",
     "ExpressionError",
     "Keyframe",
     "FadeIn", "FadeOut", "FunctionGraph", "LEFT", "LegacyAnimation", "Line",

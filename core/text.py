@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 import re
 
 from .mobject import MObject, Style, VGroup
@@ -85,6 +86,31 @@ class Text(MObject):
         self.text = str(text)
         self.font_size = float(font_size)
         self.geometry.update(text=self.text, font_size=self.font_size)
+
+
+class DecimalNumber(MObject):
+    """A scrubbable numeric label rendered from one Geometry Nodes text object."""
+
+    kind = "decimal_number"
+
+    def __init__(self, value=0.0, *, decimals=2, font_size=0.28, style=None, name="DecimalNumber"):
+        super().__init__(name=name, style=style or Style(color=WHITE))
+        if not isfinite(float(value)):
+            raise ValueError("DecimalNumber value must be finite")
+        if not 0 <= int(decimals) <= 6:
+            raise ValueError("decimals must be between 0 and 6")
+        self.value = float(value)
+        self.decimals = int(decimals)
+        self.font_size = float(font_size)
+        self.value_keyframes: list[tuple[int, float]] = []
+        self.geometry.update(value=self.value, decimals=self.decimals, font_size=self.font_size)
+
+    def key_value(self, frame: int, value: float) -> "DecimalNumber":
+        frame, value = int(frame), float(value)
+        if frame < 1 or not isfinite(value):
+            raise ValueError("DecimalNumber keyframes require a positive frame and finite value")
+        self.value_keyframes.append((frame, value))
+        return self
 
 
 @dataclass(frozen=True)

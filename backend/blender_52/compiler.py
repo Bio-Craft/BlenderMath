@@ -97,6 +97,8 @@ class BlenderCompiler:
             data = self._dot_data(mobject)
         elif mobject.kind == "text":
             data = self._text_data(mobject)
+        elif mobject.kind == "decimal_number":
+            data = bpy.data.meshes.new(f"{mobject.name} Geometry")
         elif mobject.kind == "geometry_nodes_arrow":
             data = bpy.data.meshes.new(f"{mobject.name} Geometry")
         obj = bpy.data.objects.new(mobject.name, data)
@@ -133,9 +135,81 @@ class BlenderCompiler:
                 self._compile_fill(mobject, obj)
         if mobject.kind == "geometry_nodes_arrow":
             self._configure_arrow_3d(mobject, obj, self._initial_geometry(mobject))
+        elif mobject.kind == "decimal_number":
+            self._configure_decimal_number(mobject, obj, self.materials[mobject.uid])
         for child in mobject.children:
             self._compile_mobject(child, obj)
         return obj
+
+    @staticmethod
+    def _configure_decimal_number(mobject, obj, material):
+        tree = material.node_tree
+        tree.nodes.clear()
+        emission = tree.nodes.new("ShaderNodeEmission")
+        emission.inputs["Color"].default_value = mobject.style.color
+        for socket in emission.inputs:
+            if socket.name == "Weight":
+                socket.default_value = 1.0
+        output = tree.nodes.new("ShaderNodeOutputMaterial")
+        tree.links.new(emission.outputs["Emission"], output.inputs["Surface"])
+
+        group = bpy.data.node_groups.new(f"BM {mobject.uid} Decimal Number", "GeometryNodeTree")
+        group.interface.new_socket(name="Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+        nodes, links = group.nodes, group.links
+        value_text = nodes.new("FunctionNodeValueToString")
+        value_text.inputs["Value"].default_value = mobject.value
+        value_text.inputs["Decimals"].default_value = mobject.decimals
+        absolute = nodes.new("ShaderNodeMath")
+        absolute.operation = "ABSOLUTE"
+        zero = nodes.new("FunctionNodeCompare")
+        zero.data_type = "FLOAT"
+        zero.operation = "LESS_THAN"
+        zero.inputs["B"].default_value = 0.5 * 10 ** (-mobject.decimals)
+        # The same animated float feeds formatting and the zero test.
+        value = nodes.new("ShaderNodeValue")
+        value.name = "BM Numeric Value"
+        value.outputs[0].default_value = mobject.value
+        links.new(value.outputs[0], value_text.inputs["Value"])
+        links.new(value.outputs[0], absolute.inputs[0])
+        links.new(absolute.outputs[0], zero.inputs["A"])
+        choice = nodes.new("GeometryNodeSwitch")
+        choice.input_type = "STRING"
+        choice.inputs["True"].default_value = "0"
+        links.new(zero.outputs["Result"], choice.inputs["Switch"])
+        links.new(value_text.outputs["String"], choice.inputs["False"])
+        glyphs = nodes.new("GeometryNodeStringToCurves")
+        glyphs.inputs["Size"].default_value = mobject.font_size
+        glyphs.inputs["Align X"].default_value = "Center"
+        glyphs.inputs["Align Y"].default_value = "Middle"
+        links.new(choice.outputs["Output"], glyphs.inputs["String"])
+        realized = nodes.new("GeometryNodeRealizeInstances")
+        links.new(glyphs.outputs["Curve Instances"], realized.inputs["Geometry"])
+        fill = nodes.new("GeometryNodeFillCurve")
+        links.new(realized.outputs["Geometry"], fill.inputs["Curve"])
+        shaded = nodes.new("GeometryNodeSetMaterial")
+        shaded.inputs["Material"].default_value = material
+        links.new(fill.outputs["Mesh"], shaded.inputs["Geometry"])
+        plane = nodes.new("GeometryNodeTransform")
+        plane.inputs["Rotation"].default_value = (math.pi / 2, 0.0, 0.0)
+        links.new(shaded.outputs["Geometry"], plane.inputs["Geometry"])
+        result = nodes.new("NodeGroupOutput")
+        links.new(plane.outputs["Geometry"], result.inputs["Geometry"])
+        modifier = obj.modifiers.new(name="BM Decimal Number", type="NODES")
+        modifier.node_group = group
+        keyed = {int(frame): float(value) for frame, value in mobject.value_keyframes}
+        if not keyed:
+            return
+        for frame, number in sorted(keyed.items()):
+            value.outputs[0].default_value = number
+            value.outputs[0].keyframe_insert(data_path="default_value", frame=frame)
+        action = group.animation_data.action
+        for layer in action.layers:
+            for strip in layer.strips:
+                bag = strip.channelbag(group.animation_data.action_slot)
+                if bag:
+                    for curve in bag.fcurves:
+                        for point in curve.keyframe_points:
+                            point.interpolation = "LINEAR"
 
     @staticmethod
     def _configure_arrow_3d(mobject, obj, geometry):
@@ -183,13 +257,15 @@ class BlenderCompiler:
         morph_pairs = self._geometry_morph_pairs(mobject)
         if morph_pairs:
             return deepcopy(morph_pairs[0][0])
-        clips = [
-            clip for clip in self.scene.timeline
-            if isinstance(clip, TimelineClip)
-            and getattr(clip.animation, "mobject", None) is mobject
-            and clip.initial_geometry is not None
-        ]
-        return deepcopy(min(clips, key=lambda clip: clip.start_frame).initial_geometry) if clips else deepcopy(mobject.geometry)
+        snapshots = []
+        for clip in self.scene.timeline:
+            if isinstance(clip, TimelineClip) and getattr(clip.animation, "mobject", None) is mobject:
+                if clip.initial_geometry is not None:
+                    snapshots.append((clip.start_frame, clip.initial_geometry))
+            elif isinstance(clip, BakedUpdaterClip) and clip.mobject is mobject and clip.geometry_samples:
+                # Scene construction leaves an updater-driven object at its last sample.
+                snapshots.append(clip.geometry_samples[0])
+        return deepcopy(min(snapshots, key=lambda item: item[0])[1]) if snapshots else deepcopy(mobject.geometry)
 
     def _initial_state(self, mobject):
         clips = [
@@ -501,6 +577,10 @@ class BlenderCompiler:
             alpha = principled.inputs.get("Alpha") if principled else None
             if alpha:
                 alpha.default_value = state.opacity
+            if mobject.kind == "decimal_number":
+                emission = material.node_tree.nodes.get("Emission")
+                if emission:
+                    emission.inputs["Strength"].default_value = state.opacity
         if keyframe and frame is not None:
             for path in ("location", "rotation_euler", "scale", "hide_render", "hide_viewport", "color"):
                 obj.keyframe_insert(data_path=path, frame=frame)
@@ -510,12 +590,16 @@ class BlenderCompiler:
                 material.keyframe_insert(data_path="diffuse_color", frame=frame)
                 if alpha:
                     alpha.keyframe_insert(data_path="default_value", frame=frame)
+                if mobject.kind == "decimal_number" and emission:
+                    emission.inputs["Strength"].keyframe_insert(data_path="default_value", frame=frame)
 
     def _compile_timeline(self):
         for clip in self.scene.timeline:
             if isinstance(clip, BakedUpdaterClip):
                 for frame, state in clip.samples:
                     self._apply_state(clip.mobject, state, frame, True)
+                if clip.geometry_samples:
+                    self._bake_updater_geometry(clip)
                 continue
             animation = clip.animation
             if isinstance(animation, TrackerAnimation):
@@ -737,6 +821,36 @@ class BlenderCompiler:
                 cyclic=source_cyclic,
             )
 
+    def _bake_updater_geometry(self, clip: BakedUpdaterClip):
+        target = clip.mobject
+        if target.kind == "shape_2d":
+            layer = self.objects[target.uid].data.layers[0]
+            for frame_number, geometry in clip.geometry_samples:
+                existing = next((frame for frame in layer.frames if frame.frame_number == frame_number), None)
+                if existing is not None:
+                    layer.frames.remove(frame_number)
+                frame = layer.frames.new(frame_number)
+                frame.keyframe_type = "KEYFRAME" if frame_number in {
+                    clip.geometry_samples[0][0], clip.geometry_samples[-1][0]
+                } else "BREAKDOWN"
+                points = geometry["points"]
+                if len(points) < 32:
+                    points = (
+                        _subdivide_closed_polyline(points, 32)
+                        if geometry.get("cyclic") else _subdivide_open_polyline(points, 32)
+                    )
+                self._populate_gp_drawing(
+                    frame.drawing, points, target.style, cyclic=bool(geometry.get("cyclic")),
+                )
+        elif target.kind in {"curve", "arrow"}:
+            spline = self.objects[target.uid].data.splines[0]
+            for frame_number, geometry in clip.geometry_samples:
+                for spline_point, point in zip(spline.points, geometry["points"]):
+                    spline_point.co = (*point, 1.0)
+                    spline_point.keyframe_insert(data_path="co", frame=frame_number)
+        else:
+            raise TypeError(f"Geometry updater does not support {target.kind!r}")
+
     @staticmethod
     def _interpolate_style(initial, final, amount):
         if initial is None or final is None:
@@ -760,6 +874,12 @@ class BlenderCompiler:
             return
         material = self.materials.get(mobject.uid)
         if material is None:
+            return
+        if mobject.kind == "decimal_number":
+            emission = material.node_tree.nodes.get("Emission")
+            if emission:
+                emission.inputs["Color"].default_value = style.color
+                emission.inputs["Color"].keyframe_insert(data_path="default_value", frame=frame)
             return
         gp = getattr(material, "grease_pencil", None)
         if gp:

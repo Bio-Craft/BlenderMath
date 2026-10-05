@@ -3,7 +3,7 @@ import unittest
 
 from core import (
     BLUE, BLUE_C, BLUE_E, COLORMAP_3B1B, GREEN, RED, WHITE, YELLOW, Axes, Circle, Create, Dot, Expression, ExpressionError, FadeOut, Line, MathMatrix, MathTex,
-    NumberPlane, Rectangle, Scene, ThreeDAxes, Transform, TransformMatchingTex, Write,
+    DecimalNumber, NumberPlane, Polyline, Rectangle, Scene, ThreeDAxes, Transform, TransformMatchingTex, Write,
     ValueTracker, VGroup, linear,
 )
 from core.scene import BakedUpdaterClip
@@ -24,6 +24,17 @@ class ColorTests(unittest.TestCase):
         self.assertEqual(BLUE, BLUE_C)
         self.assertEqual(BLUE_E, (28 / 255, 117 / 255, 138 / 255, 1.0))
         self.assertEqual(COLORMAP_3B1B, (BLUE_E, GREEN, YELLOW, RED))
+
+
+class DecimalNumberTests(unittest.TestCase):
+    def test_keyed_readout_and_validation(self):
+        number = DecimalNumber(0, decimals=2)
+        self.assertIs(number.key_value(1, 0.0).key_value(30, 0.65), number)
+        self.assertEqual(number.value_keyframes, [(1, 0.0), (30, 0.65)])
+        with self.assertRaises(ValueError):
+            number.key_value(0, 1.0)
+        with self.assertRaises(ValueError):
+            DecimalNumber(float("nan"))
 
 
 class GreasePencilFillTests(unittest.TestCase):
@@ -405,6 +416,30 @@ class TimelineTests(unittest.TestCase):
         self.assertEqual(len(baked.samples), 11)
         self.assertEqual(baked.samples[0][1].location, (0, 0, 0))
         self.assertEqual(baked.samples[-1][1].location, (2, 0, 0))
+
+    def test_tracker_bakes_polyline_geometry_each_frame(self):
+        tracker = ValueTracker(0, "amplitude")
+        line = Polyline([(0, 0, 0), (1, 0, 0)])
+        line.add_updater(lambda curve: curve.set_points([(0, 0, 0), (1, 0, tracker.value)]))
+        scene = Scene(fps=10).add(line)
+        scene.play(tracker.animate.set_value(2), run_time=1, rate_func=linear)
+        baked = next(clip for clip in scene.timeline if isinstance(clip, BakedUpdaterClip))
+        self.assertEqual(len(baked.geometry_samples), 11)
+        self.assertEqual(baked.geometry_samples[0][1]["points"][1], (1, 0, 0))
+        self.assertEqual(baked.geometry_samples[5][1]["points"][1], (1, 0, 1))
+        self.assertEqual(baked.geometry_samples[-1][1]["points"][1], (1, 0, 2))
+
+    def test_geometry_updater_rejects_changing_point_count(self):
+        tracker = ValueTracker(0)
+        line = Polyline([(0, 0, 0), (1, 0, 0)])
+        line.add_updater(lambda curve: curve.set_points(
+            [(0, 0, 0), (1, 0, 0)] if tracker.value == 0 else
+            [(0, 0, 0), (0.5, 0, 0), (1, 0, 0)]
+        ))
+        with self.assertRaisesRegex(ValueError, "preserve its point count"):
+            Scene(fps=10).add(line).play(
+                tracker.animate.set_value(1), run_time=1, rate_func=linear,
+            )
 
     def test_transform_records_arc_and_custom_path(self):
         dot = Dot((-2, 0, 0))

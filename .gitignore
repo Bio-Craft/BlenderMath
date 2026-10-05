@@ -9,6 +9,7 @@ htmlcov/
 .idea/
 dist/
 build/
+tmp/
 *.egg-info/
 *.zip
 *.blend
@@ -19,4 +20,3 @@ build/
 *.log
 .DS_Store
 Thumbs.db
-
